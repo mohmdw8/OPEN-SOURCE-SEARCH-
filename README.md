@@ -127,7 +127,7 @@ Select Compare projects and enter between 2 to 4 projects (URLs or names):
 Project 1: https://github.com/owner/repo-a
 Project 2: https://github.com/owner/repo-b
 Project 3: (leave blank to finish)
-
+<img width="720" height="873" alt="Image" src="https://github.com/user-attachments/assets/a3ead0ad-f73e-4645-b515-6c0e6f9cff19" />
 You will get:
 
   - A comprehensive comparison table showing stars, language, license, and key
