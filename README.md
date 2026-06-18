@@ -119,6 +119,7 @@ https://github.com/owner/repo
 
 The tool automatically fetches project details via the GitHub API and enables
 all available actions on it without requiring a search.
+<img width="720" height="473" alt="Image" src="https://github.com/user-attachments/assets/98f44b18-cf5d-444e-9780-713402228fae" />
 
 4. Project Comparison
 
@@ -134,6 +135,8 @@ You will get:
     features.
   - An AI-powered comparison summary with recommendations for each use case.
   - An option to translate the comparison into any language.
+
+    There are other things I'll leave for you to discover. 
 
 How the Tool Works Internally
 
@@ -206,6 +209,7 @@ Requirements
   - Active internet connection
   - Libraries: requests, questionary, rich, duckduckgo-search, deep_translator,
     g4f
+    -It works on all terminals (termux/linux..)
 
 Notes
 
@@ -214,3 +218,5 @@ Notes
   - No API key is required to start using the tool.
   - GitHub search results may be limited by rate limits if you do not provide an
     official token.
+
+The tool searches all the mentioned sites; it may be inaccurate when searching on Pypi or Docker, but it still provides good results.  The search focuses on comparing the tool description with the user description to show exactly the tool you want. 
