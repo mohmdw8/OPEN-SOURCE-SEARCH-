@@ -74,8 +74,8 @@ g4f (GPT-4o / Claude / Llama) → gpt-4o-mini → DuckDuckGo Chat → Pollinatio
 Installation
 
 # 1. Clone the project
-git clone https://github.com/mohamedw8/ops.git
-cd ops
+git clone https://github.com/mohamedw8/OPEN-SOURCE-SEARCH.git
+cd ops.py
 
 # 2. Install requirements
 pip install requests questionary rich duckduckgo-search deep_translator g4f
