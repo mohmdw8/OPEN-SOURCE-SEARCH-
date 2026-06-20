@@ -291,6 +291,7 @@ Enter 2–4 project URLs or names. Get a feature comparison table and AI-powered
 - [ ] Package on PyPI (`pip install opensourcesearch`)
 
 ### Phase 5: Search Quality & Usability 📈 (Planned)
+- [ ] **Fix Arabic (RTL) text rendering in terminal** — Panels and tables may still mis-align right-to-left scripts; needs proper Rich RTL support or custom alignment
 - [ ] **Improve search result relevance** — fine-tune keyword extraction and boosting, filter low-quality repos (no description, archived)
 - [ ] **Enhance usage fetching** — fall back to PyPI/npm/Docker Hub README when GitHub README unavailable, detect monorepo sub-packages
 - [ ] Result sorting by stars, license, language before AI ranking

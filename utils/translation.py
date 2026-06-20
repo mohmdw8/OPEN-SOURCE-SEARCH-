@@ -11,7 +11,7 @@ _LANG_CODE_MAP = {
     "Korean": "ko", "Chinese": "zh", "Hindi": "hi", "Turkish": "tr",
     "Dutch": "nl", "Polish": "pl", "Swedish": "sv", "Greek": "el",
     "Czech": "cs", "Romanian": "ro", "Vietnamese": "vi", "Thai": "th",
-    "Indonesian": "id", "Hebrew": "he", "Malay": "ms",
+    "Indonesian": "id", "Malay": "ms",
 }
 
 LANGUAGE_NAMES = list(_LANG_CODE_MAP.keys())
@@ -43,7 +43,7 @@ def detect_language(text: str) -> str:
     return "en"
 
 
-_RTL_PATTERN = re.compile(r'[\u0600-\u06FF\u0590-\u05FF\u0700-\u074F]+')
+_RTL_PATTERN = re.compile(r'[\u0600-\u06FF\u0700-\u074F]+')
 
 
 def rtl_wrap(text: str) -> str:
