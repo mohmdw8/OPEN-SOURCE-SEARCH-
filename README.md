@@ -273,16 +273,16 @@ Enter 2–4 project URLs or names. Get a feature comparison table and AI-powered
 - [x] **Centralized Logging** — `utils/logger.py` replaces bare `except: pass`
 
 ### Phase 2: Improve Test Coverage 🔄 (In Progress)
-- [ ] Unit tests for search engines, translation, cache, AI ranking
+- [x] Unit tests for search engines, translation, cache, AI ranking
 - [ ] Integration tests for multi-platform search workflow
 - [ ] CI pipeline (GitHub Actions)
 
 ### Phase 3: Performance & Features 📋 (Planned)
 - [ ] Result pagination for large result sets
-- [ ] Filter by language, license, stars range, last update
+- [x] Filter by language, license, stars range, last update
 - [ ] Config file support (`~/.config/opensourcesearch/config.json`)
 - [ ] Shell completion scripts (bash/zsh)
-- [ ] Search result caching (individual results, not just queries)
+- [x] Search result caching (individual results, not just queries)
 
 ### Phase 4: Long-term Vision 🔮 (Future)
 - [ ] Go rewrite — single binary, no Python dependency
@@ -297,4 +297,4 @@ Enter 2–4 project URLs or names. Get a feature comparison table and AI-powered
 - [ ] Result sorting by stars, license, language before AI ranking
 - [ ] Show more metadata per result (last commit date, open issues count)
 - [ ] Multi-page results (scroll beyond top 15)
-- [ ] Better error messages when APIs fail, with retry hints
+- [x] Better error messages when APIs fail, with retry hints
