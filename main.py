@@ -20,7 +20,7 @@ from rich.rule import Rule
 
 from core.config import TIMEOUTS, PLATFORMS, LICENSE_MAP, UNKNOWN_LICENSE, QUESTIONARY_STYLE
 from core.cache import lookup_cache, save_to_cache
-from utils.translation import detect_language, translate_to_english, translate_text, LANGUAGE_NAMES
+from utils.translation import detect_language, translate_to_english, translate_text, LANGUAGE_NAMES, rtl_wrap
 from ai_backend.llm_handler import ai_chat, safe_parse_ai_json
 from ai_backend.ranking import ai_rank_results
 from search_engines import (
@@ -410,7 +410,7 @@ Do not repeat the project name more than once. Write in plain English."""
                 translated_summary = translate_text(answer, target_lang)
             if translated_summary and translated_summary != answer:
                 console.print(Panel(
-                    translated_summary,
+                    rtl_wrap(translated_summary),
                     title=f"[bold magenta]Summary \u2014 {title} ({target_lang})[/]",
                     border_style="magenta",
                 ))
@@ -518,7 +518,7 @@ def action_translate_description(result: dict):
         p.add_task("", total=None)
         translated = translate_text(desc, target_lang)
     if translated:
-        console.print(Panel(translated, title=f"[bold magenta]Translation ({target_lang})[/]", border_style="magenta"))
+        console.print(Panel(rtl_wrap(translated), title=f"[bold magenta]Translation ({target_lang})[/]", border_style="magenta"))
     else:
         console.print("[red]Translation failed.[/]")
 
@@ -704,7 +704,7 @@ Write in plain English."""
                         translated_cmp = translate_text(answer, target_lang)
                     if translated_cmp and translated_cmp != answer:
                         console.print(Panel(
-                            translated_cmp,
+                            rtl_wrap(translated_cmp),
                             title=f"[bold magenta]AI Comparison ({target_lang})[/]",
                             border_style="magenta",
                         ))

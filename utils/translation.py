@@ -43,6 +43,15 @@ def detect_language(text: str) -> str:
     return "en"
 
 
+_RTL_PATTERN = re.compile(r'[\u0600-\u06FF\u0590-\u05FF\u0700-\u074F]+')
+
+
+def rtl_wrap(text: str) -> str:
+    if _RTL_PATTERN.search(text):
+        return "\u202B" + text + "\u202C"
+    return text
+
+
 def translate_to_english(text: str) -> str:
     if detect_language(text) == "en":
         return text
