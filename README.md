@@ -107,7 +107,7 @@ Or via pip: `pip install uv`
 
 ```bash
 # 1. Clone
-git clone https://github.com/asaadzx/OpenSourceSearch.git
+git clone https://github.com/mohmdw8/OpenSourceSearch.git
 cd OpenSourceSearch
 
 # 2. Install dependencies & create venv
