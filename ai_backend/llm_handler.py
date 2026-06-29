@@ -56,7 +56,7 @@ def _try_gemini(prompt: str) -> str:
         if r.status_code == 200:
             return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     except Exception as exc:
-        logger.warning(f"Gemini API failed: {exc}")
+        logger.warning(f"Gemini API failed: {type(exc).__name__}")
     return ""
 
 

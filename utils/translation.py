@@ -3,8 +3,10 @@ import sys
 import requests
 from urllib.parse import quote
 
-from langdetect import detect
+from langdetect import detect, DetectorFactory
 from utils.logger import logger
+
+DetectorFactory.seed = 0
 
 from core.config import HEADERS_BROWSER, TIMEOUTS
 
@@ -22,15 +24,21 @@ LANGUAGE_NAMES = list(_LANG_CODE_MAP.keys())
 def _lang_code(name: str) -> str:
     return _LANG_CODE_MAP.get(name, name[:2])
 
-def detect_language(text: str) -> str:
-    try:
-        return detect(text)
-    except Exception as e:
-        logger.exception(f"Error al detectar idioma: {e}")
-        return "en"
-
-
 _RTL_PATTERN = re.compile(r'[\u0600-\u06FF\u0700-\u074F]+')
+
+def detect_language(text: str) -> str:
+    if not text or not text.strip():
+        return "en"
+    try:
+        if _RTL_PATTERN.search(text):
+            return "ar"
+        lang = detect(text)
+        if lang.startswith("zh"):
+            return "zh"
+        return lang
+    except Exception as e:
+        logger.warning(f"Error al detectar idioma: {type(e).__name__}")
+        return "en"
 
 
 def rtl_wrap(text: str) -> str:
