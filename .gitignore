@@ -8,6 +8,9 @@ __pycache__/
 .venv/
 venv/
 
+# Logs
+*.log
+
 # Cache
 query_cache.json
 

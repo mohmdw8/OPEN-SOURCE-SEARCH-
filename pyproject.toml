@@ -20,7 +20,7 @@ ai = [
 ]
 
 [project.scripts]
-ops = "main:main"
+opss = "main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

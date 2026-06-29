@@ -1,4 +1,5 @@
 import os
+import json
 import warnings
 import logging
 from questionary import Style
@@ -39,6 +40,43 @@ PLATFORMS = {
     "npm": {"domain": "npmjs.com", "api": "npm"},
     "Docker Hub": {"domain": "hub.docker.com", "api": "docker"},
 }
+
+_CONFIG_DIR = os.path.expanduser("~/.config/opensourcesearch")
+_CONFIG_PATH = os.path.join(_CONFIG_DIR, "config.json")
+DEFAULT_MAX_RESULTS = 6
+DEFAULT_PLATFORMS = list(PLATFORMS.keys())
+
+def _load_user_config() -> dict:
+    try:
+        if os.path.isfile(_CONFIG_PATH):
+            with open(_CONFIG_PATH) as f:
+                cfg = json.load(f)
+            if not isinstance(cfg, dict):
+                return {}
+            return cfg
+    except Exception:
+        pass
+    return {}
+
+_USER_CFG = _load_user_config()
+
+_override_platforms = _USER_CFG.get("platforms")
+if isinstance(_override_platforms, list) and _override_platforms:
+    DEFAULT_PLATFORMS = [p for p in _override_platforms if p in PLATFORMS] or DEFAULT_PLATFORMS
+
+DEFAULT_MAX_RESULTS = _USER_CFG.get("max_results", DEFAULT_MAX_RESULTS)
+if not isinstance(DEFAULT_MAX_RESULTS, int) or DEFAULT_MAX_RESULTS < 1:
+    DEFAULT_MAX_RESULTS = 6
+
+_user_timeouts = _USER_CFG.get("timeouts")
+if isinstance(_user_timeouts, dict):
+    for k in TIMEOUTS:
+        if k in _user_timeouts and isinstance(_user_timeouts[k], (int, float)) and _user_timeouts[k] > 0:
+            TIMEOUTS[k] = int(_user_timeouts[k])
+
+_user_token = _USER_CFG.get("github_token", "")
+if _user_token and not os.environ.get("GITHUB_TOKEN") and not os.environ.get("GH_TOKEN"):
+    os.environ["GITHUB_TOKEN"] = _user_token
 
 LICENSE_MAP = {
     "mit": {"name": "MIT", "allowed": "Commercial, Modify, Distribute, Private", "forbidden": "Liability, Warranty", "conditions": "Include license notice"},

@@ -9,16 +9,6 @@ import requests
 from urllib.parse import quote
 from duckduckgo_search import DDGS
 
-import duckduckgo_search.duckduckgo_search as _ddgs_mod
-if _ddgs_mod.warnings.simplefilter.__name__ != "_suppress_rename_warning":
-    _original_simplefilter = _ddgs_mod.warnings.simplefilter
-    def _suppress_rename_warning(action, category=Warning, append=False):
-        if action == "always" and category is Warning:
-            return
-        return _original_simplefilter(action, category, append)
-    _ddgs_mod.warnings.simplefilter = _suppress_rename_warning
-    _ddgs_mod.DDGS.__init__.__globals__["warnings"].simplefilter = _suppress_rename_warning
-
 from core.config import TIMEOUTS
 from utils.logger import logger
 

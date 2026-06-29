@@ -10,12 +10,16 @@ def _github_headers() -> dict:
     return headers
 
 
+import datetime
+
+
 def search_github(query: str, prog_lang: str = "Any", max_results: int = 8) -> list:
     try:
         q = query
         if prog_lang and prog_lang.lower() not in ("any", ""):
             q += f" language:{prog_lang}"
-        q += " pushed:>2023-01-01 fork:false"
+        cutoff = (datetime.date.today() - datetime.timedelta(days=730)).isoformat()
+        q += f" pushed:>{cutoff} fork:false"
         params = {"q": q, "sort": "stars", "order": "desc", "per_page": max_results}
         r = requests.get(
             "https://api.github.com/search/repositories",
@@ -40,6 +44,8 @@ def search_github(query: str, prog_lang: str = "Any", max_results: int = 8) -> l
                 "language": item.get("language") or "N/A",
                 "license": (item.get("license") or {}).get("spdx_id", "Unknown"),
                 "updated": item.get("pushed_at", "")[:10],
+                "open_issues": item.get("open_issues_count", 0),
+                "archived": item.get("archived", False),
                 "platform": "GitHub",
                 "_from_api": True,
             })

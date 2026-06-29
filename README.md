@@ -1,6 +1,6 @@
 # OpenSourceSearch
 
-<img width="311" height="213" alt="Image" src="https://github.com/user-attachments/assets/3f2f37be-33ad-4c20-95ed-9a4848a83e45" />
+<img width="311" height="213" alt="OPSS Logo" src="logo.png" />
 
 Search for open-source projects in any language. Describe what you need in plain English, Arabic, French, or any language — the tool handles translation, searches 9 platforms simultaneously, and ranks results with AI.
 
@@ -147,6 +147,28 @@ export GITHUB_TOKEN="your_github_token"
 
 Create a token at https://github.com/settings/tokens — no scopes are needed for public repository searches.
 
+### Configuration File
+
+You can persist preferences in `~/.config/opensourcesearch/config.json`:
+
+```json
+{
+  "platforms": ["GitHub", "GitLab", "PyPI", "npm"],
+  "max_results": 8,
+  "timeouts": {
+    "api_main": 15
+  },
+  "github_token": "ghp_your_token_here"
+}
+```
+
+| Key | Type | Default | Description |
+| :-- | :--- | :------ | :---------- |
+| `platforms` | array | all 9 | Default selected platforms for search |
+| `max_results` | int | 6 | Results per platform |
+| `timeouts` | object | built-in | Override API/DDG/AI timeout seconds |
+| `github_token` | string | `""` | GitHub token (alternative to `.env`) |
+
 ## How to Use
 
 ### 1. Searching for a Project
@@ -272,16 +294,16 @@ Enter 2–4 project URLs or names. Get a feature comparison table and AI-powered
 - [x] **Migrate PyPI to JSON API** — JSON search primary, XML-RPC fallback
 - [x] **Centralized Logging** — `utils/logger.py` replaces bare `except: pass`
 
-### Phase 2: Improve Test Coverage 🔄 (In Progress)
+### Phase 2: Improve Test Coverage ✅ (Complete)
 - [x] Unit tests for search engines, translation, cache, AI ranking
-- [ ] Integration tests for multi-platform search workflow
-- [ ] CI pipeline (GitHub Actions)
+- [x] Integration tests for multi-platform search workflow (mocked APIs)
+- [x] CI pipeline (GitHub Actions)
 
-### Phase 3: Performance & Features 📋 (Planned)
+### Phase 3: Performance & Features 📋 (In Progress)
 - [ ] Result pagination for large result sets
 - [x] Filter by language, license, stars range, last update
-- [ ] Config file support (`~/.config/opensourcesearch/config.json`)
-- [ ] Shell completion scripts (bash/zsh)
+- [x] Config file support (`~/.config/opensourcesearch/config.json`)
+- [x] Shell completion scripts (bash/zsh)
 - [x] Search result caching (individual results, not just queries)
 
 ### Phase 4: Long-term Vision 🔮 (Future)
@@ -290,11 +312,12 @@ Enter 2–4 project URLs or names. Get a feature comparison table and AI-powered
 - [ ] REST API for third-party integration
 - [ ] Package on PyPI (`pip install opensourcesearch`)
 
-### Phase 5: Search Quality & Usability 📈 (Planned)
+### Phase 5: Search Quality & Usability 📈 (In Progress)
 - [ ] **Fix Arabic (RTL) text rendering in terminal** — Panels and tables may still mis-align right-to-left scripts; needs proper Rich RTL support or custom alignment
-- [ ] **Improve search result relevance** — fine-tune keyword extraction and boosting, filter low-quality repos (no description, archived)
+- [x] **Improve search result relevance** — fine-tune keyword extraction and boosting, filter low-quality repos (no description, archived)
 - [ ] **Enhance usage fetching** — fall back to PyPI/npm/Docker Hub README when GitHub README unavailable, detect monorepo sub-packages
-- [ ] Result sorting by stars, license, language before AI ranking
-- [ ] Show more metadata per result (last commit date, open issues count)
+- [x] Result sorting by stars, license, language before AI ranking
+- [x] Show more metadata per result (last commit date, open issues count)
 - [ ] Multi-page results (scroll beyond top 15)
 - [x] Better error messages when APIs fail, with retry hints
+- [x] Non-AI summary fallback when all AI backends fail

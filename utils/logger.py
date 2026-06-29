@@ -3,14 +3,14 @@ import os
 import logging
 from datetime import datetime
 
-LOG_FILE = "ops.log"
+LOG_FILE = "opss.log"
 
 
 class _FileLogger:
     def __init__(self):
         self._enabled = False
         self._path = ""
-        self._log = logging.getLogger("ops")
+        self._log = logging.getLogger("opss")
 
     def init(self, log_dir: str = ""):
         try:
