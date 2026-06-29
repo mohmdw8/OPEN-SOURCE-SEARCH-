@@ -36,8 +36,8 @@ def detect_language(text: str) -> str:
         if lang.startswith("zh"):
             return "zh"
         return lang
-    except Exception as e:
-        logger.warning(f"Error al detectar idioma: {type(e).__name__}")
+    except Exception as exc:
+        logger.warning(f"Language detection failed: {type(exc).__name__}")
         return "en"
 
 
