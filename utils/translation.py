@@ -3,6 +3,9 @@ import sys
 import requests
 from urllib.parse import quote
 
+from langdetect import detect
+from utils.logger import logger
+
 from core.config import HEADERS_BROWSER, TIMEOUTS
 
 _LANG_CODE_MAP = {
@@ -19,28 +22,12 @@ LANGUAGE_NAMES = list(_LANG_CODE_MAP.keys())
 def _lang_code(name: str) -> str:
     return _LANG_CODE_MAP.get(name, name[:2])
 
-_ARABIC_RANGE = r'[\u0600-\u06FF]+'
-_CJK_RANGE = r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+'
-_CYRILLIC_RANGE = r'[\u0400-\u04FF]+'
-_DEVANAGARI_RANGE = r'[\u0900-\u097F]+'
-_JAPANESE_KANA = r'[\u3040-\u309f\u30a0-\u30ff]+'
-_KOREAN_RANGE = r'[\uac00-\ud7af]+'
-
-_NON_LATIN_PATTERNS = [
-    ('ar', _ARABIC_RANGE),
-    ('ja', _JAPANESE_KANA),
-    ('ko', _KOREAN_RANGE),
-    ('ru', _CYRILLIC_RANGE),
-    ('hi', _DEVANAGARI_RANGE),
-    ('zh', _CJK_RANGE),
-]
-
-
 def detect_language(text: str) -> str:
-    for lang, pattern in _NON_LATIN_PATTERNS:
-        if re.search(pattern, text):
-            return lang
-    return "en"
+    try:
+        return detect(text)
+    except Exception as e:
+        logger.exception(f"Error al detectar idioma: {e}")
+        return "en"
 
 
 _RTL_PATTERN = re.compile(r'[\u0600-\u06FF\u0700-\u074F]+')
