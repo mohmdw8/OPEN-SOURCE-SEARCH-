@@ -9,6 +9,7 @@ dependencies = [
     "rich>=13.0.0",
     "duckduckgo-search>=5.0.0",
     "deep_translator>=1.11.0",
+    "langdetect>=1.0.9",
 ]
 
 [project.optional-dependencies]
