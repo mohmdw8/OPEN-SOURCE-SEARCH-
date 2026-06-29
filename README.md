@@ -58,10 +58,10 @@ OpenSourceSearch/
 Write your query in any non-English language. Translation chain:
 
 ```
-Google Translate → deep_translator → MyMemory → Lingva → Built-in dictionary fallback
+Google Translate → deep_translator → MyMemory → Lingva → AI chat translation
 ```
 
-Language detection now supports **Arabic, Japanese, Korean, Russian, Hindi, Chinese, and more** — not just Arabic vs English.
+Language detection supports **Arabic, Japanese, Korean, Russian, Hindi, Chinese, and more** non-Latin scripts. Latin-script languages (French, Spanish, German, etc.) pass through untranslated — the AI query expansion handles them directly.
 
 ### 🤖 AI Query Expansion
 
@@ -287,7 +287,7 @@ Enter 2–4 project URLs or names. Get a feature comparison table and AI-powered
 ## Roadmap
 
 ### Phase 1: Critical Bug Fixes ✅ (Complete)
-- [x] **Fix Language Detection** — Now detects Arabic, Japanese, Korean, Russian, Hindi, Chinese
+- [x] **Fix Language Detection (non-Latin)** — Detects Arabic, Japanese, Korean, Russian, Hindi, Chinese scripts; Latin-script languages still WIP
 - [x] **GitHub Token Support** — `GITHUB_TOKEN` env var for 5000 req/hr
 - [x] **Atomic Cache Writes** — `tempfile.mkstemp` + `os.replace` prevents corruption
 - [x] **Replace g4f as Default** — DuckDuckGo Chat is now primary (faster, no IP bans)
@@ -321,3 +321,5 @@ Enter 2–4 project URLs or names. Get a feature comparison table and AI-powered
 - [ ] Multi-page results (scroll beyond top 15)
 - [x] Better error messages when APIs fail, with retry hints
 - [x] Non-AI summary fallback when all AI backends fail
+- [ ] **Fix Latin-script language detection** — `detect_language` only checks non-Latin Unicode ranges; French/Spanish/German are incorrectly detected as English, skipping translation. Needs `langdetect` library or Google Translate auto-detect
+- [ ] **Hybrid AI backend with API keys** — Add opt-in support for `GEMINI_API_KEY` / `GROQ_API_KEY` env vars for faster, more stable AI responses when users provide keys
