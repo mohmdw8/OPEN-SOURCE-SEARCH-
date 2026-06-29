@@ -81,7 +81,7 @@ def translate_to_english(text: str) -> str:
     try:
         r = requests.get(
             "https://api.mymemory.translated.net/get",
-            params={"q": text[:500], "langpair": "ar|en"},
+            params={"q": text[:500], "langpair": "auto|en"},
             headers=HEADERS_BROWSER,
             timeout=TIMEOUTS["translate"],
         )
@@ -94,7 +94,7 @@ def translate_to_english(text: str) -> str:
         pass
     try:
         r = requests.get(
-            f"https://lingva.ml/api/v1/ar/en/{quote(text[:500])}",
+            f"https://lingva.ml/api/v1/auto/en/{quote(text[:500])}",
             headers=HEADERS_BROWSER,
             timeout=TIMEOUTS["translate"],
         )

@@ -1,74 +1,216 @@
-import sys
-import re
 import json
-import time
-import math
+import re
 import subprocess
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 
 import questionary
 from questionary import Style
+from rich import box
+from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
-from rich import box
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.align import Align
-from rich.rule import Rule
 
-from core.config import TIMEOUTS, PLATFORMS, LICENSE_MAP, UNKNOWN_LICENSE, QUESTIONARY_STYLE
-from core.cache import lookup_cache, save_to_cache
-from utils.translation import detect_language, translate_to_english, translate_text, LANGUAGE_NAMES, rtl_wrap
 from ai_backend.llm_handler import ai_chat, safe_parse_ai_json
 from ai_backend.ranking import ai_rank_results
+from core.cache import lookup_cache, save_to_cache
+from core.config import (
+    DEFAULT_MAX_RESULTS,
+    DEFAULT_PLATFORMS,
+    LICENSE_MAP,
+    PLATFORMS,
+    QUESTIONARY_STYLE,
+    TIMEOUTS,
+    UNKNOWN_LICENSE,
+)
 from search_engines import (
-    search_github, search_huggingface, search_pypi, search_npm,
-    search_docker, search_ddg, fetch_readme, fetch_repo_info,
-    smart_deduplicate, prefilter_results,
+    fetch_readme,
+    fetch_repo_info,
+    prefilter_results,
+    search_ddg,
+    search_docker,
+    search_github,
+    search_huggingface,
+    search_npm,
+    search_pypi,
+    smart_deduplicate,
+)
+from utils.logger import logger as file_logger
+from utils.translation import (
+    LANGUAGE_NAMES,
+    detect_language,
+    rtl_wrap,
+    translate_text,
+    translate_to_english,
 )
 
 console = Console()
 
 _STOPWORDS = {
-    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "need", "dare", "ought",
-    "used", "that", "this", "these", "those", "it", "its", "i", "me", "my",
-    "we", "our", "you", "your", "he", "she", "they", "their", "them", "us",
-    "for", "to", "of", "in", "on", "at", "by", "with", "from", "into", "like",
-    "want", "find", "get", "use", "using", "help", "helps", "allow", "allows",
-    "let", "lets", "give", "gives", "make", "makes", "look", "looking",
-    "just", "very", "also", "really", "some", "any", "all", "more", "most",
-    "much", "many", "than", "then", "when", "where", "which", "who", "how",
-    "what", "why", "easy", "easily", "simple", "quickly", "fast", "tool",
-    "program", "software", "application", "something", "need", "needs",
+    "a",
+    "an",
+    "the",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "shall",
+    "can",
+    "need",
+    "dare",
+    "ought",
+    "used",
+    "that",
+    "this",
+    "these",
+    "those",
+    "it",
+    "its",
+    "i",
+    "me",
+    "my",
+    "we",
+    "our",
+    "you",
+    "your",
+    "he",
+    "she",
+    "they",
+    "their",
+    "them",
+    "us",
+    "for",
+    "to",
+    "of",
+    "in",
+    "on",
+    "at",
+    "by",
+    "with",
+    "from",
+    "into",
+    "like",
+    "want",
+    "find",
+    "get",
+    "use",
+    "using",
+    "help",
+    "helps",
+    "allow",
+    "allows",
+    "let",
+    "lets",
+    "give",
+    "gives",
+    "make",
+    "makes",
+    "look",
+    "looking",
+    "just",
+    "very",
+    "also",
+    "really",
+    "some",
+    "any",
+    "all",
+    "more",
+    "most",
+    "much",
+    "many",
+    "than",
+    "then",
+    "when",
+    "where",
+    "which",
+    "who",
+    "how",
+    "what",
+    "why",
+    "easy",
+    "easily",
+    "simple",
+    "quickly",
+    "fast",
+    "tool",
+    "program",
+    "software",
+    "application",
+    "something",
+    "need",
+    "needs",
 }
 
 _TECH_MAP = {
-    "website": "web", "websites": "web", "web": "web",
-    "program": "app", "programming": "dev",
-    "build": "builder", "create": "generator", "make": "builder",
-    "fast": "performance", "data": "data",
-    "database": "database", "store": "storage", "storage": "storage",
-    "cloud": "cloud", "file": "file", "image": "image",
-    "video": "video", "audio": "audio",
-    "chat": "chat", "email": "email", "search": "search",
+    "website": "web",
+    "websites": "web",
+    "web": "web",
+    "program": "app",
+    "programming": "dev",
+    "build": "builder",
+    "create": "generator",
+    "make": "builder",
+    "fast": "performance",
+    "data": "data",
+    "database": "database",
+    "store": "storage",
+    "storage": "storage",
+    "cloud": "cloud",
+    "file": "file",
+    "image": "image",
+    "video": "video",
+    "audio": "audio",
+    "chat": "chat",
+    "email": "email",
+    "search": "search",
     "machine learning": "ml",
-    "ai": "ai", "api": "api",
-    "server": "server", "deploy": "deploy",
-    "monitor": "monitor", "test": "test",
-    "scrape": "scrape", "scraping": "scrape",
-    "download": "downloader", "upload": "upload",
-    "convert": "converter", "parse": "parser",
-    "encrypt": "security", "backup": "backup",
-    "sync": "sync", "task": "task", "schedule": "scheduler",
-    "graph": "graph", "chart": "chart",
-    "pdf": "pdf", "excel": "spreadsheet",
-    "markdown": "markdown", "cli": "cli",
-    "game": "game", "mobile": "mobile",
-    "desktop": "gui", "docker": "docker",
+    "ai": "ai",
+    "api": "api",
+    "server": "server",
+    "deploy": "deploy",
+    "monitor": "monitor",
+    "test": "test",
+    "scrape": "scrape",
+    "scraping": "scrape",
+    "download": "downloader",
+    "upload": "upload",
+    "convert": "converter",
+    "parse": "parser",
+    "encrypt": "security",
+    "backup": "backup",
+    "sync": "sync",
+    "task": "task",
+    "schedule": "scheduler",
+    "graph": "graph",
+    "chart": "chart",
+    "pdf": "pdf",
+    "excel": "spreadsheet",
+    "markdown": "markdown",
+    "cli": "cli",
+    "game": "game",
+    "mobile": "mobile",
+    "desktop": "gui",
+    "docker": "docker",
     "kubernetes": "k8s",
     "penetration testing": "pentest",
     "wifi": "wifi",
@@ -89,22 +231,29 @@ _TECH_MAP = {
 def print_logo():
     console.print()
     lines = [
-        " [bold bright_green] ██████╗ ██████╗ ███████╗[/]",
-        " [bold bright_green]██╔═══██╗██╔══██╗██╔════╝[/]",
-        " [bold bright_green]██║   ██║██████╔╝███████╗[/]",
-        " [bold bright_green]██║   ██║██╔═══╝ ╚════██║[/]",
-        " [bold bright_green]╚██████╔╝██║     ███████║[/]",
-        " [bold bright_green] ╚═════╝ ╚═╝     ╚══════╝[/]",
+        " [bold bright_green] ██████╗ ██████╗ ███████╗ ███████╗[/]",
+        " [bold bright_green]██╔═══██╗██╔══██╗██╔════╝ ██╔════╝[/]",
+        " [bold bright_green]██║   ██║██████╔╝███████╗ ███████╗[/]",
+        " [bold bright_green]██║   ██║██╔═══╝ ╚════██║ ╚════██║[/]",
+        " [bold bright_green]╚██████╔╝██║     ███████║ ███████║[/]",
+        " [bold bright_green] ╚═════╝ ╚═╝     ╚══════╝ ╚══════╝[/]",
     ]
     for line in lines:
         console.print(line)
-    console.print(Text("  open source search", style="dim white"))
+    console.print(Text("  open source search   OPSS", style="dim white"))
     console.print()
-    console.print(Panel.fit(
-        Align.center(Text("Hybrid search: Direct APIs + DDG fallback | AI query expansion + AI ranking", style="dim cyan")),
-        border_style="bright_black",
-        padding=(0, 2),
-    ))
+    console.print(
+        Panel.fit(
+            Align.center(
+                Text(
+                    "Hybrid search: Direct APIs + DDG fallback | AI query expansion + AI ranking",
+                    style="dim cyan",
+                )
+            ),
+            border_style="bright_black",
+            padding=(0, 2),
+        )
+    )
     console.print()
 
 
@@ -112,7 +261,7 @@ def _smart_fallback_query(translated: str) -> str:
     words = translated.lower().split()
     clean_words = []
     for w in words:
-        clean_w = re.sub(r'[^a-z0-9]', '', w)
+        clean_w = re.sub(r"[^a-z0-9]", "", w)
         if clean_w and clean_w not in _STOPWORDS:
             clean_words.append(clean_w)
     return " ".join(clean_words) if clean_words else translated
@@ -129,7 +278,9 @@ def expand_query(user_input: str) -> dict:
 
     translated = user_input
     if detect_language(user_input) != "en":
-        with Progress(SpinnerColumn(), TextColumn("[dim]Translating..."), transient=True) as p:
+        with Progress(
+            SpinnerColumn(), TextColumn("[dim]Translating..."), transient=True
+        ) as p:
             p.add_task("", total=None)
             translated = translate_to_english(user_input)
         if translated != user_input:
@@ -181,7 +332,9 @@ Return ONLY valid JSON:
             result_dict = {
                 "sub_queries": sub_queries,
                 "en_query": q1,
-                "alt_queries": [x for x in [q2, q3] if x and detect_language(x) == "en"],
+                "alt_queries": [
+                    x for x in [q2, q3] if x and detect_language(x) == "en"
+                ],
                 "keywords": parsed.get("keywords", translated.split()[:5]),
                 "language": parsed.get("language", "Any"),
                 "type": parsed.get("type", "any"),
@@ -205,7 +358,7 @@ Return ONLY valid JSON:
     }
 
 
-def search_all(query_info: dict, selected_platforms: list, max_per: int = 6) -> list:
+def search_all(query_info: dict, selected_platforms: list, max_per: int = DEFAULT_MAX_RESULTS) -> list:
     sub_queries = query_info.get("sub_queries", [])
     if not sub_queries:
         sub_queries = [query_info["en_query"]]
@@ -267,7 +420,10 @@ def search_all(query_info: dict, selected_platforms: list, max_per: int = 6) -> 
             tasks.append((name, q))
 
     with ThreadPoolExecutor(max_workers=10) as ex:
-        futures = {ex.submit(_search_platform_for_query, name, q): (name, q) for name, q in tasks}
+        futures = {
+            ex.submit(_search_platform_for_query, name, q): (name, q)
+            for name, q in tasks
+        }
         for fut in as_completed(futures, timeout=MAX_TOTAL_WAIT):
             try:
                 all_results.extend(fut.result())
@@ -276,7 +432,21 @@ def search_all(query_info: dict, selected_platforms: list, max_per: int = 6) -> 
             if time.time() - start > MAX_TOTAL_WAIT * 0.8 and len(all_results) > 15:
                 break
 
-    return smart_deduplicate(all_results)
+    results = smart_deduplicate(all_results)
+    results = _filter_low_quality(results)
+    return results
+
+
+def _filter_low_quality(results: list) -> list:
+    filtered = []
+    for r in results:
+        if r.get("archived", False):
+            continue
+        body = (r.get("body", "") or "").strip()
+        if not body and r.get("platform") == "GitHub":
+            continue
+        filtered.append(r)
+    return filtered if filtered else results
 
 
 def display_results_table(results: list):
@@ -288,14 +458,16 @@ def display_results_table(results: list):
         expand=True,
     )
     table.add_column("#", style="dim", width=3, no_wrap=True)
-    table.add_column("Project", style="bold white", min_width=20)
-    table.add_column("Platform", style="cyan", width=11, no_wrap=True)
-    table.add_column("Stars", style="yellow", width=10, no_wrap=True)
-    table.add_column("Usage", style="bright_yellow", width=14, no_wrap=True)
-    table.add_column("Match%", style="bright_green", width=8, no_wrap=True)
+    table.add_column("Project", style="bold white", min_width=18)
+    table.add_column("Platform", style="cyan", width=10, no_wrap=True)
+    table.add_column("Stars", style="yellow", width=8, no_wrap=True)
+    table.add_column("Updated", style="dim", width=12, no_wrap=True)
+    table.add_column("Issues", style="bright_red", width=8, no_wrap=True)
+    table.add_column("Usage", style="bright_yellow", width=13, no_wrap=True)
+    table.add_column("Match%", style="bright_green", width=7, no_wrap=True)
     table.add_column("License", style="magenta", width=11, no_wrap=True)
-    table.add_column("Language", style="blue", width=11, no_wrap=True)
-    table.add_column("Description", style="dim white", min_width=22)
+    table.add_column("Language", style="blue", width=10, no_wrap=True)
+    table.add_column("Description", style="dim white", min_width=18)
 
     for i, r in enumerate(results, 1):
         stars = r.get("stars", 0) or 0
@@ -305,11 +477,18 @@ def display_results_table(results: list):
         usage_str = f"{usage:,} {usage_label}" if usage else "\u2014"
         match_pct = r.get("_match_pct", "\u2014")
         match_str = f"{match_pct}%" if isinstance(match_pct, int) else "\u2014"
+        updated = (r.get("updated", "") or "")[:10] or "\u2014"
+        issues = r.get("open_issues", "\u2014")
+        issues_str = (
+            f"{issues:,}" if isinstance(issues, int) and issues > 0 else "\u2014"
+        )
         table.add_row(
             str(i),
             r.get("title", ""),
             r.get("platform", ""),
             stars_str,
+            updated,
+            issues_str,
             usage_str,
             match_str,
             r.get("license", "Unknown") or "Unknown",
@@ -321,10 +500,44 @@ def display_results_table(results: list):
 
 def action_open_browser(url: str):
     try:
-        subprocess.Popen(["xdg-open", url], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+        subprocess.Popen(
+            ["xdg-open", url], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL
+        )
         console.print(f"[green]Opening:[/] {url}")
     except Exception:
         console.print(f"[yellow]URL:[/] {url}")
+
+
+def _make_local_summary(result: dict) -> str:
+    title = result.get("title", "")
+    desc = result.get("body", "") or ""
+    platform = result.get("platform", "")
+    language = result.get("language", "") or ""
+    stars = result.get("stars", 0) or 0
+    usage = result.get("usage", 0) or 0
+    usage_lbl = result.get("usage_label", "")
+    license_ = result.get("license", "") or ""
+    updated = result.get("updated", "") or ""
+    open_issues = result.get("open_issues", 0) or 0
+    parts = [f"{title} is a project on {platform}."]
+    if desc:
+        parts.append(desc.rstrip(".") + ".")
+    details = []
+    if language and language not in ("N/A", "Unknown", "Model", "Docker"):
+        details.append(f"Language: {language}")
+    if stars > 0:
+        details.append(f"{stars:,} stars")
+    if usage > 0 and usage_lbl:
+        details.append(f"{usage:,} {usage_lbl}")
+    if license_ and license_ not in ("Unknown", "See PyPI"):
+        details.append(f"License: {license_}")
+    if updated:
+        details.append(f"Last updated: {updated[:10]}")
+    if open_issues > 0:
+        details.append(f"{open_issues} open issues")
+    if details:
+        parts.append(" | ".join(details))
+    return "\n\n".join(parts)
 
 
 def action_summary(result: dict):
@@ -381,15 +594,20 @@ Write a clear, concise summary in 5-7 sentences. {angle}
 Be specific \u2014 mention actual feature names, commands, or integrations visible in the README.
 Do not repeat the project name more than once. Write in plain English."""
 
-    with Progress(SpinnerColumn(), TextColumn("[cyan]Generating summary..."), transient=True) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[cyan]Generating summary..."), transient=True
+    ) as p:
         p.add_task("", total=None)
         answer = ai_chat(prompt)
 
     if not answer:
-        console.print("[red]Could not generate summary.[/]")
-        return
+        answer = _make_local_summary(result)
 
-    console.print(Panel(answer, title=f"[bold cyan]Summary \u2014 {title}[/]", border_style="cyan"))
+    console.print(
+        Panel(
+            answer, title=f"[bold cyan]Summary \u2014 {title}[/]", border_style="cyan"
+        )
+    )
 
     console.print()
     want_translate = questionary.confirm(
@@ -405,15 +623,19 @@ Do not repeat the project name more than once. Write in plain English."""
             style=QUESTIONARY_STYLE,
         ).ask()
         if target_lang:
-            with Progress(SpinnerColumn(), TextColumn("[cyan]Translating..."), transient=True) as p:
+            with Progress(
+                SpinnerColumn(), TextColumn("[cyan]Translating..."), transient=True
+            ) as p:
                 p.add_task("", total=None)
                 translated_summary = translate_text(answer, target_lang)
             if translated_summary and translated_summary != answer:
-                console.print(Panel(
-                    rtl_wrap(translated_summary),
-                    title=f"[bold magenta]Summary \u2014 {title} ({target_lang})[/]",
-                    border_style="magenta",
-                ))
+                console.print(
+                    Panel(
+                        rtl_wrap(translated_summary),
+                        title=f"[bold magenta]Summary \u2014 {title} ({target_lang})[/]",
+                        border_style="magenta",
+                    )
+                )
 
 
 def action_usage(result: dict):
@@ -432,13 +654,17 @@ def action_usage(result: dict):
             readme = fetch_readme("/".join(parts[:2]))[:3000]
 
     if platform == "PyPI" or language == "Python":
-        install_hint = "Installation is likely via pip. Show: pip install or pip3 install."
+        install_hint = (
+            "Installation is likely via pip. Show: pip install or pip3 install."
+        )
     elif platform == "npm" or language == "JavaScript":
         install_hint = "Installation via npm or yarn. Show both if applicable."
     elif platform == "Docker Hub" or language == "Docker":
         install_hint = "Show docker pull and docker run commands with common options."
     elif platform == "Hugging Face" or language == "Model":
-        install_hint = "Show how to load the model with transformers or the relevant library."
+        install_hint = (
+            "Show how to load the model with transformers or the relevant library."
+        )
     elif language == "Go":
         install_hint = "Show go install command."
     elif language == "Rust":
@@ -475,7 +701,9 @@ Return ONLY a JSON array of 3-6 steps. Each step:
 Extract commands directly from the README when available.
 Return ONLY valid JSON array, no markdown, no extra text."""
 
-    with Progress(SpinnerColumn(), TextColumn("[cyan]Fetching usage info..."), transient=True) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[cyan]Fetching usage info..."), transient=True
+    ) as p:
         p.add_task("", total=None)
         answer = ai_chat(prompt)
 
@@ -489,15 +717,23 @@ Return ONLY valid JSON array, no markdown, no extra text."""
             if s.get("note"):
                 console.print(f"  [dim]{s['note']}[/]")
             if s.get("command"):
-                console.print(Panel(
-                    f"[bold bright_green]{s['command']}[/]",
-                    border_style="green",
-                    padding=(0, 2),
-                ))
+                console.print(
+                    Panel(
+                        f"[bold bright_green]{s['command']}[/]",
+                        border_style="green",
+                        padding=(0, 2),
+                    )
+                )
         console.print()
     else:
         if answer:
-            console.print(Panel(answer, title=f"[bold yellow]Usage \u2014 {title}[/]", border_style="yellow"))
+            console.print(
+                Panel(
+                    answer,
+                    title=f"[bold yellow]Usage \u2014 {title}[/]",
+                    border_style="yellow",
+                )
+            )
         else:
             console.print("[red]Could not fetch usage info.[/]")
 
@@ -514,11 +750,19 @@ def action_translate_description(result: dict):
     ).ask()
     if not target_lang:
         return
-    with Progress(SpinnerColumn(), TextColumn("[cyan]Translating..."), transient=True) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[cyan]Translating..."), transient=True
+    ) as p:
         p.add_task("", total=None)
         translated = translate_text(desc, target_lang)
     if translated:
-        console.print(Panel(rtl_wrap(translated), title=f"[bold magenta]Translation ({target_lang})[/]", border_style="magenta"))
+        console.print(
+            Panel(
+                rtl_wrap(translated),
+                title=f"[bold magenta]Translation ({target_lang})[/]",
+                border_style="magenta",
+            )
+        )
     else:
         console.print("[red]Translation failed.[/]")
 
@@ -533,7 +777,9 @@ def action_license_info(result: dict):
     t.add_row("Allowed", info["allowed"])
     t.add_row("Forbidden", info["forbidden"])
     t.add_row("Conditions", info["conditions"])
-    console.print(Panel(t, title="[bold magenta]License Info[/]", border_style="magenta"))
+    console.print(
+        Panel(t, title="[bold magenta]License Info[/]", border_style="magenta")
+    )
 
 
 def action_clone_command(result: dict):
@@ -542,21 +788,29 @@ def action_clone_command(result: dict):
         cmd = f"git clone {url}.git"
     else:
         cmd = f"# Visit: {url}"
-    console.print(Panel(f"[bold green]{cmd}[/]", title="Clone Command", border_style="green"))
+    console.print(
+        Panel(f"[bold green]{cmd}[/]", title="Clone Command", border_style="green")
+    )
 
 
 def action_similar_search(result: dict, selected_platforms: list):
     desc = result.get("body", "") or result.get("title", "")
-    console.print(f"\n[cyan]Searching for projects similar to:[/] {result.get('title', '')}")
+    console.print(
+        f"\n[cyan]Searching for projects similar to:[/] {result.get('title', '')}"
+    )
     q_info = expand_query(desc)
-    with Progress(SpinnerColumn(), TextColumn("[cyan]Searching..."), transient=True) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[cyan]Searching..."), transient=True
+    ) as p:
         p.add_task("", total=None)
         results = search_all(q_info, selected_platforms)
     if not results:
         console.print("[red]No results found.[/]")
         return
     results = prefilter_results(results, q_info.get("keywords", []))
-    with Progress(SpinnerColumn(), TextColumn("[cyan]AI ranking..."), transient=True) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[cyan]AI ranking..."), transient=True
+    ) as p:
         p.add_task("", total=None)
         results = ai_rank_results(results, desc)
     display_results_table(results)
@@ -564,7 +818,9 @@ def action_similar_search(result: dict, selected_platforms: list):
 
 
 def compare_projects():
-    console.print("[cyan]Enter 2-4 project URLs or names to compare (empty line to finish):[/]")
+    console.print(
+        "[cyan]Enter 2-4 project URLs or names to compare (empty line to finish):[/]"
+    )
     entries = []
     while len(entries) < 4:
         line = questionary.text(
@@ -584,28 +840,43 @@ def compare_projects():
             parsed = urlparse(entry)
             path_parts = parsed.path.strip("/").split("/")
             p = {
-                "title": "/".join(path_parts[:2]), "href": entry,
-                "body": "", "stars": 0, "forks": 0,
-                "language": "N/A", "license": "Unknown",
-                "platform": parsed.netloc, "features": "",
+                "title": "/".join(path_parts[:2]),
+                "href": entry,
+                "body": "",
+                "stars": 0,
+                "forks": 0,
+                "language": "N/A",
+                "license": "Unknown",
+                "platform": parsed.netloc,
+                "features": "",
             }
             if "github.com" in parsed.netloc and len(path_parts) >= 2:
                 repo = "/".join(path_parts[:2])
                 info = fetch_repo_info(repo)
                 if info:
-                    p.update({
-                        "title": info.get("full_name", p["title"]),
-                        "body": info.get("description", "") or "",
-                        "stars": info.get("stargazers_count", 0),
-                        "forks": info.get("forks_count", 0),
-                        "language": info.get("language") or "N/A",
-                        "license": (info.get("license") or {}).get("spdx_id", "Unknown"),
-                    })
+                    p.update(
+                        {
+                            "title": info.get("full_name", p["title"]),
+                            "body": info.get("description", "") or "",
+                            "stars": info.get("stargazers_count", 0),
+                            "forks": info.get("forks_count", 0),
+                            "language": info.get("language") or "N/A",
+                            "license": (info.get("license") or {}).get(
+                                "spdx_id", "Unknown"
+                            ),
+                        }
+                    )
         else:
             p = {
-                "title": entry, "href": "", "body": "",
-                "stars": 0, "forks": 0, "language": "N/A",
-                "license": "Unknown", "platform": "Unknown", "features": "",
+                "title": entry,
+                "href": "",
+                "body": "",
+                "stars": 0,
+                "forks": 0,
+                "language": "N/A",
+                "license": "Unknown",
+                "platform": "Unknown",
+                "features": "",
             }
         projects.append(p)
 
@@ -618,21 +889,27 @@ def compare_projects():
                 readme = fetch_readme("/".join(parts[:2]))[:2000]
 
         feat_prompt = f"""List the 4-5 most important features of this open-source project.
-Project: {p['title']}
-Description: {p['body']}
+Project: {p["title"]}
+Description: {p["body"]}
 README: {readme}
 
 Return ONLY a JSON array of short feature strings, max 8 words each.
 Example: ["Fast async processing", "Built-in REST API", "Docker support", "MIT license"]
 Return ONLY valid JSON array, no extra text."""
 
-        with Progress(SpinnerColumn(), TextColumn(f"[dim]Getting features: {p['title'][:25]}...[/]"), transient=True) as pr:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn(f"[dim]Getting features: {p['title'][:25]}...[/]"),
+            transient=True,
+        ) as pr:
             pr.add_task("", total=None)
             feat_raw = ai_chat(feat_prompt)
 
         features = safe_parse_ai_json(feat_raw, list)
         if features and isinstance(features, list):
-            p["features"] = "\n".join(f"\u2022 {f}" for f in features[:5] if isinstance(f, str))
+            p["features"] = "\n".join(
+                f"\u2022 {f}" for f in features[:5] if isinstance(f, str)
+            )
         else:
             p["features"] = (p.get("body", "") or "")[:80] or "\u2014"
 
@@ -647,8 +924,11 @@ Return ONLY valid JSON array, no extra text."""
         t.add_column(p["title"].split("/")[-1], style="white", min_width=18)
 
     for label, key in [
-        ("Platform", "platform"), ("Stars", "stars"), ("Forks", "forks"),
-        ("Language", "language"), ("License", "license"),
+        ("Platform", "platform"),
+        ("Stars", "stars"),
+        ("Forks", "forks"),
+        ("Language", "language"),
+        ("License", "license"),
     ]:
         row = [label]
         for p in projects:
@@ -664,27 +944,46 @@ Return ONLY valid JSON array, no extra text."""
     t.add_row(*features_row)
 
     console.print()
-    console.print(Panel(t, title="[bold cyan]Project Comparison[/]", border_style="cyan"))
+    console.print(
+        Panel(t, title="[bold cyan]Project Comparison[/]", border_style="cyan")
+    )
 
-    ai_choice = questionary.confirm("Generate AI comparison summary?", style=QUESTIONARY_STYLE).ask()
+    ai_choice = questionary.confirm(
+        "Generate AI comparison summary?", style=QUESTIONARY_STYLE
+    ).ask()
     if ai_choice:
         prompt = f"""Compare these open-source projects concisely and technically.
 Projects:
-{json.dumps([{
-    "name": p["title"], "description": p["body"],
-    "stars": p["stars"], "language": p["language"],
-    "license": p["license"], "features": p["features"],
-} for p in projects], indent=2)}
+{
+            json.dumps(
+                [
+                    {
+                        "name": p["title"],
+                        "description": p["body"],
+                        "stars": p["stars"],
+                        "language": p["language"],
+                        "license": p["license"],
+                        "features": p["features"],
+                    }
+                    for p in projects
+                ],
+                indent=2,
+            )
+        }
 
 Cover: main differences, strengths, weaknesses, and a clear recommendation for different use cases.
 Write in plain English."""
 
-        with Progress(SpinnerColumn(), TextColumn("[cyan]AI comparing..."), transient=True) as prog:
+        with Progress(
+            SpinnerColumn(), TextColumn("[cyan]AI comparing..."), transient=True
+        ) as prog:
             prog.add_task("", total=None)
             answer = ai_chat(prompt)
 
         if answer:
-            console.print(Panel(answer, title="[bold cyan]AI Comparison[/]", border_style="cyan"))
+            console.print(
+                Panel(answer, title="[bold cyan]AI Comparison[/]", border_style="cyan")
+            )
 
             console.print()
             want_translate = questionary.confirm(
@@ -699,15 +998,21 @@ Write in plain English."""
                     style=QUESTIONARY_STYLE,
                 ).ask()
                 if target_lang:
-                    with Progress(SpinnerColumn(), TextColumn("[cyan]Translating..."), transient=True) as p:
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[cyan]Translating..."),
+                        transient=True,
+                    ) as p:
                         p.add_task("", total=None)
                         translated_cmp = translate_text(answer, target_lang)
                     if translated_cmp and translated_cmp != answer:
-                        console.print(Panel(
-                            rtl_wrap(translated_cmp),
-                            title=f"[bold magenta]AI Comparison ({target_lang})[/]",
-                            border_style="magenta",
-                        ))
+                        console.print(
+                            Panel(
+                                rtl_wrap(translated_cmp),
+                                title=f"[bold magenta]AI Comparison ({target_lang})[/]",
+                                border_style="magenta",
+                            )
+                        )
 
 
 def handle_result_selection(results: list, selected_platforms: list):
@@ -724,13 +1029,15 @@ def handle_result_selection(results: list, selected_platforms: list):
     result = results[idx]
 
     console.print()
-    console.print(Panel(
-        f"[bold white]{result.get('title', '')}[/]\n"
-        f"[dim]{result.get('href', '')}[/]\n\n"
-        f"{result.get('body', '')}",
-        title=f"[cyan]{result.get('platform', '')}[/]",
-        border_style="bright_black",
-    ))
+    console.print(
+        Panel(
+            f"[bold white]{result.get('title', '')}[/]\n"
+            f"[dim]{result.get('href', '')}[/]\n\n"
+            f"{result.get('body', '')}",
+            title=f"[cyan]{result.get('platform', '')}[/]",
+            border_style="bright_black",
+        )
+    )
 
     while True:
         action = questionary.select(
@@ -792,28 +1099,32 @@ def analyze_by_url():
         repo = "/".join(path_parts[:2])
         info = fetch_repo_info(repo)
         if info:
-            result.update({
-                "title": info.get("full_name", result["title"]),
-                "body": info.get("description", "") or "",
-                "stars": info.get("stargazers_count", 0),
-                "forks": info.get("forks_count", 0),
-                "language": info.get("language") or "N/A",
-                "license": (info.get("license") or {}).get("spdx_id", "Unknown"),
-                "updated": info.get("pushed_at", "")[:10],
-            })
+            result.update(
+                {
+                    "title": info.get("full_name", result["title"]),
+                    "body": info.get("description", "") or "",
+                    "stars": info.get("stargazers_count", 0),
+                    "forks": info.get("forks_count", 0),
+                    "language": info.get("language") or "N/A",
+                    "license": (info.get("license") or {}).get("spdx_id", "Unknown"),
+                    "updated": info.get("pushed_at", "")[:10],
+                }
+            )
 
     console.print()
-    console.print(Panel(
-        f"[bold white]{result['title']}[/]\n"
-        f"[dim]{result['href']}[/]\n\n"
-        f"{result['body']}\n\n"
-        f"Stars: [yellow]{result['stars']:,}[/]  |  "
-        f"Forks: [blue]{result['forks']:,}[/]  |  "
-        f"Language: [cyan]{result['language']}[/]  |  "
-        f"License: [magenta]{result['license']}[/]",
-        title="[cyan]Project Info[/]",
-        border_style="bright_black",
-    ))
+    console.print(
+        Panel(
+            f"[bold white]{result['title']}[/]\n"
+            f"[dim]{result['href']}[/]\n\n"
+            f"{result['body']}\n\n"
+            f"Stars: [yellow]{result['stars']:,}[/]  |  "
+            f"Forks: [blue]{result['forks']:,}[/]  |  "
+            f"Language: [cyan]{result['language']}[/]  |  "
+            f"License: [magenta]{result['license']}[/]",
+            title="[cyan]Project Info[/]",
+            border_style="bright_black",
+        )
+    )
 
     while True:
         action = questionary.select(
@@ -850,7 +1161,7 @@ def search_flow():
     platform_choices = list(PLATFORMS.keys())
     selected = questionary.checkbox(
         "Select platforms to search:",
-        choices=[questionary.Choice(p, checked=True) for p in platform_choices],
+        choices=[questionary.Choice(p, checked=(p in DEFAULT_PLATFORMS)) for p in platform_choices],
         style=QUESTIONARY_STYLE,
     ).ask()
     if not selected:
@@ -873,7 +1184,9 @@ def search_flow():
     )
     console.print()
 
-    with Progress(SpinnerColumn(), TextColumn("[cyan]Searching platforms..."), transient=True) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[cyan]Searching platforms..."), transient=True
+    ) as p:
         p.add_task("", total=None)
         results = search_all(q_info, selected)
 
@@ -883,7 +1196,16 @@ def search_flow():
 
     results = prefilter_results(results, q_info.get("keywords", []))
 
-    with Progress(SpinnerColumn(), TextColumn("[cyan]AI ranking results..."), transient=True) as p:
+    results.sort(
+        key=lambda r: (
+            (r.get("stars", 0) or 0) if q_info.get("language", "Any") == "Any" else 0
+        ),
+        reverse=True,
+    )
+
+    with Progress(
+        SpinnerColumn(), TextColumn("[cyan]AI ranking results..."), transient=True
+    ) as p:
         p.add_task("", total=None)
         results = ai_rank_results(results, user_input)
 
@@ -894,6 +1216,7 @@ def search_flow():
 
 
 def main():
+    file_logger.init()
     print_logo()
     while True:
         choice = questionary.select(
