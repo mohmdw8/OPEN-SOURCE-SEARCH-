@@ -1,3 +1,4 @@
+import os
 import re
 import json
 import time
@@ -39,6 +40,45 @@ def _is_valid_ai_response(text: str, min_len: int = 20) -> bool:
 
 _AI_CACHE: dict = {}
 _CACHE_TTL = 300
+
+
+def _try_gemini(prompt: str) -> str:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return ""
+    try:
+        r = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}",
+            json={"contents": [{"parts": [{"text": prompt}]}]},
+            headers={"Content-Type": "application/json"},
+            timeout=TIMEOUTS["ai"],
+        )
+        if r.status_code == 200:
+            return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except Exception as exc:
+        logger.warning(f"Gemini API failed: {exc}")
+    return ""
+
+
+def _try_groq(prompt: str) -> str:
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        return ""
+    try:
+        r = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            json={
+                "model": "llama3-8b-8192",
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            timeout=TIMEOUTS["ai"],
+        )
+        if r.status_code == 200:
+            return r.json()["choices"][0]["message"]["content"].strip()
+    except Exception as exc:
+        logger.warning(f"Groq API failed: {exc}")
+    return ""
 
 
 def _try_ddgs_chat(prompt: str) -> str:
@@ -122,7 +162,7 @@ def ai_chat(prompt: str, min_len: int = 20) -> str:
         cached_result, ts = _AI_CACHE[cache_key]
         if time.time() - ts < _CACHE_TTL:
             return cached_result
-    for fn in (_try_ddgs_chat, _try_ddgs_claude, _try_pollinations, _try_g4f):
+    for fn in (_try_gemini, _try_groq, _try_ddgs_chat, _try_ddgs_claude, _try_pollinations, _try_g4f):
         try:
             r = fn(prompt)
             if _is_valid_ai_response(r, min_len):
