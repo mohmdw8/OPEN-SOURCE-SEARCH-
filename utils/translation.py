@@ -3,6 +3,11 @@ import sys
 import requests
 from urllib.parse import quote
 
+from langdetect import detect, DetectorFactory
+
+DetectorFactory.seed = 0
+
+from utils.logger import logger
 from core.config import HEADERS_BROWSER, TIMEOUTS
 
 _LANG_CODE_MAP = {
@@ -19,31 +24,25 @@ LANGUAGE_NAMES = list(_LANG_CODE_MAP.keys())
 def _lang_code(name: str) -> str:
     return _LANG_CODE_MAP.get(name, name[:2])
 
-_ARABIC_RANGE = r'[\u0600-\u06FF]+'
-_CJK_RANGE = r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+'
-_CYRILLIC_RANGE = r'[\u0400-\u04FF]+'
-_DEVANAGARI_RANGE = r'[\u0900-\u097F]+'
-_JAPANESE_KANA = r'[\u3040-\u309f\u30a0-\u30ff]+'
-_KOREAN_RANGE = r'[\uac00-\ud7af]+'
-
-_NON_LATIN_PATTERNS = [
-    ('ar', _ARABIC_RANGE),
-    ('ja', _JAPANESE_KANA),
-    ('ko', _KOREAN_RANGE),
-    ('ru', _CYRILLIC_RANGE),
-    ('hi', _DEVANAGARI_RANGE),
-    ('zh', _CJK_RANGE),
-]
+_RTL_PATTERN = re.compile(r'[\u0600-\u06FF\u0700-\u074F]+')
+_SYMBOLS_ONLY = re.compile(r'^[\d\W]+$')
 
 
 def detect_language(text: str) -> str:
-    for lang, pattern in _NON_LATIN_PATTERNS:
-        if re.search(pattern, text):
-            return lang
-    return "en"
-
-
-_RTL_PATTERN = re.compile(r'[\u0600-\u06FF\u0700-\u074F]+')
+    if not text or not text.strip():
+        return "en"
+    if _SYMBOLS_ONLY.match(text.strip()):
+        return "en"
+    try:
+        if _RTL_PATTERN.search(text):
+            return "ar"
+        lang = detect(text)
+        if lang.startswith("zh"):
+            return "zh"
+        return lang
+    except Exception as exc:
+        logger.warning(f"Language detection failed: {type(exc).__name__}")
+        return "en"
 
 
 def rtl_wrap(text: str) -> str:
@@ -79,9 +78,10 @@ def translate_to_english(text: str) -> str:
     except Exception:
         pass
     try:
+        src_lang = detect_language(text)
         r = requests.get(
             "https://api.mymemory.translated.net/get",
-            params={"q": text[:500], "langpair": "ar|en"},
+            params={"q": text[:500], "langpair": f"{src_lang}|en"},
             headers=HEADERS_BROWSER,
             timeout=TIMEOUTS["translate"],
         )
@@ -93,8 +93,9 @@ def translate_to_english(text: str) -> str:
     except Exception:
         pass
     try:
+        src_lang = detect_language(text)
         r = requests.get(
-            f"https://lingva.ml/api/v1/ar/en/{quote(text[:500])}",
+            f"https://lingva.ml/api/v1/{src_lang}/en/{quote(text[:500])}",
             headers=HEADERS_BROWSER,
             timeout=TIMEOUTS["translate"],
         )
